@@ -12,7 +12,10 @@ createdb:
 migrate:
 	migrate -path db/migration -database $(POSTGRES_URL) --verbose up
 
+sqlc:
+	sqlc generate
+
 dropdb:
 	docker exec -it postgres14 dropdb $(POSTGRES_DB)
 
-.PHONY: postgres createdb migrate dropdb
+.PHONY: postgres createdb migrate sqlc dropdb
