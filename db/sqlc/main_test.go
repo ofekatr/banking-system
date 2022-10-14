@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
 )
 
@@ -30,7 +29,6 @@ var (
 
 func init() {
 	var err error
-	godotenv.Load("../../.env")
 
 	dbUser = os.Getenv("DB_USER")
 	dbPassword = os.Getenv("DB_PASSWORD")
