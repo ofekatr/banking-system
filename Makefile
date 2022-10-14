@@ -9,8 +9,11 @@ postgres:
 createdb:
 	docker exec -it postgres14 createdb --user=$(DB_USER) --owner=$(DB_USER) $(DB_NAME)
 
-migrate:
+migrateup:
 	migrate -path db/migrations -database $(DB_URL) --verbose up
+
+migratedown:
+	migrate -path db/migrations -database $(DB_URL) --verbose down
 
 sqlc:
 	sqlc generate
@@ -21,4 +24,4 @@ dropdb:
 test:
 	go test -v -cover ./...
 
-.PHONY: postgres createdb migrate sqlc dropdb
+# .PHONY: postgres createdb migrate sqlc dropdb

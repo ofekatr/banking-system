@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/ofekatr/simple-bank/util"
@@ -11,13 +12,13 @@ import (
 func TestTransferTx(t *testing.T) {
 	store := NewStore(testDB)
 
-	fromAccount, err := createRandomAccount()
+	account1, err := createRandomAccount()
 	require.NoError(t, err)
-	require.NotEmpty(t, fromAccount)
+	require.NotEmpty(t, account1)
 
-	toAccount, err := createRandomAccount()
+	account2, err := createRandomAccount()
 	require.NoError(t, err)
-	require.NotEmpty(t, toAccount)
+	require.NotEmpty(t, account2)
 
 	n := 5
 	amount := util.RandomMoney()
@@ -26,10 +27,11 @@ func TestTransferTx(t *testing.T) {
 	results := make(chan *TransferTxResult)
 
 	for i := 0; i < n; i++ {
+		txName := fmt.Sprintf("tx %d", i+1)
 		go func() {
-			result, err := store.TransferTx(context.Background(), TransferTxParams{
-				FromAccountID: fromAccount.ID,
-				ToAccountID:   toAccount.ID,
+			result, err := store.TransferTx(context.WithValue(context.Background(), TxKey, txName), TransferTxParams{
+				FromAccountID: account1.ID,
+				ToAccountID:   account2.ID,
 				Amount:        amount,
 			})
 
@@ -38,6 +40,9 @@ func TestTransferTx(t *testing.T) {
 		}()
 	}
 
+	// check results
+	existed := make(map[int]bool)
+
 	for i := 0; i < n; i++ {
 		err := <-errs
 		require.NoError(t, err)
@@ -45,35 +50,72 @@ func TestTransferTx(t *testing.T) {
 		result := <-results
 		require.NotEmpty(t, result)
 
-		require.Equal(t, fromAccount.ID, result.FromAccount.ID)
-		dbFromAccount, err := store.GetAccount(context.Background(), result.FromAccount.ID)
-		require.NoError(t, err)
-		require.Equal(t, dbFromAccount.ID, result.FromAccount.ID)
+		// check transfer
+		transfer := result.Transfer
+		require.NotEmpty(t, transfer)
+		require.Equal(t, account1.ID, transfer.FromAccountID)
+		require.Equal(t, account2.ID, transfer.ToAccountID)
+		require.Equal(t, amount, transfer.Amount)
+		require.NotZero(t, transfer.ID)
+		require.NotZero(t, transfer.CreatedAt)
 
-		require.Equal(t, toAccount.ID, result.ToAccount.ID)
-		dbToAccount, err := store.GetAccount(context.Background(), toAccount.ID)
+		_, err = store.GetTransfer(context.Background(), transfer.ID)
 		require.NoError(t, err)
-		require.Equal(t, dbToAccount.ID, result.ToAccount.ID)
 
-		require.NotZero(t, result.Transfer.ID)
-		dbTransfer, err := store.GetTransfer(context.Background(), result.Transfer.ID)
+		// check entries
+		fromEntry := result.FromEntry
+		require.NotEmpty(t, fromEntry)
+		require.Equal(t, account1.ID, fromEntry.AccountID)
+		require.Equal(t, -amount, fromEntry.Amount)
+		require.NotZero(t, fromEntry.ID)
+		require.NotZero(t, fromEntry.CreatedAt)
+
+		_, err = store.GetEntry(context.Background(), fromEntry.ID)
 		require.NoError(t, err)
-		require.Equal(t, dbTransfer.Amount, result.Transfer.Amount)
-		require.Equal(t, result.Transfer.FromAccountID, fromAccount.ID)
-		require.Equal(t, result.Transfer.ToAccountID, toAccount.ID)
 
-		require.NotZero(t, result.FromEntry.ID)
-		dbFromEntry, err := store.GetEntry(context.Background(), result.FromEntry.ID)
+		toEntry := result.ToEntry
+		require.NotEmpty(t, toEntry)
+		require.Equal(t, account2.ID, toEntry.AccountID)
+		require.Equal(t, amount, toEntry.Amount)
+		require.NotZero(t, toEntry.ID)
+		require.NotZero(t, toEntry.CreatedAt)
+
+		_, err = store.GetEntry(context.Background(), toEntry.ID)
 		require.NoError(t, err)
-		require.Equal(t, dbFromEntry.Amount, -amount)
-		require.Equal(t, dbFromEntry.AccountID, fromAccount.ID)
 
-		require.NotZero(t, result.ToEntry.ID)
-		dbToEntry, err := store.GetEntry(context.Background(), result.ToEntry.ID)
-		require.NoError(t, err)
-		require.Equal(t, dbToEntry.Amount, amount)
-		require.Equal(t, dbToEntry.AccountID, toAccount.ID)
+		// check accounts
+		fromAccount := result.FromAccount
+		require.NotEmpty(t, fromAccount)
+		require.Equal(t, account1.ID, fromAccount.ID)
 
-		require.NotZero(t, result.Transfer.CreatedAt)
+		toAccount := result.ToAccount
+		require.NotEmpty(t, toAccount)
+		require.Equal(t, account2.ID, toAccount.ID)
+
+		// check balances
+		fmt.Println(">> tx:", fromAccount.Balance, toAccount.Balance)
+
+		diff1 := account1.Balance - fromAccount.Balance
+		diff2 := toAccount.Balance - account2.Balance
+		require.Equal(t, diff1, diff2)
+		require.True(t, diff1 > 0)
+		require.True(t, diff1%amount == 0) // 1 * amount, 2 * amount, 3 * amount, ..., n * amount
+
+		k := int(diff1 / amount)
+		require.True(t, k >= 1 && k <= n)
+		require.NotContains(t, existed, k)
+		existed[k] = true
 	}
+
+	// check the final updated balance
+	updatedAccount1, err := store.GetAccount(context.Background(), account1.ID)
+	require.NoError(t, err)
+
+	updatedAccount2, err := store.GetAccount(context.Background(), account2.ID)
+	require.NoError(t, err)
+
+	fmt.Println(">> after:", updatedAccount1.Balance, updatedAccount2.Balance)
+
+	require.Equal(t, account1.Balance-int64(n)*amount, updatedAccount1.Balance)
+	require.Equal(t, account2.Balance+int64(n)*amount, updatedAccount2.Balance)
 }

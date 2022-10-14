@@ -28,13 +28,14 @@ var (
 )
 
 func init() {
+	var err error
 	godotenv.Load("../../.env")
 
 	dbDriver = os.Getenv("DB_DRIVER")
 	dbUser = os.Getenv("DB_USER")
 	dbPassword = os.Getenv("DB_PASSWORD")
 	dbHost = os.Getenv("DB_HOST")
-	dbPort, err := strconv.Atoi(os.Getenv("DB_PORT"))
+	dbPort, err = strconv.Atoi(os.Getenv("DB_PORT"))
 	if err != nil {
 		log.Fatalf("invalid DB port: %v", err)
 	}
