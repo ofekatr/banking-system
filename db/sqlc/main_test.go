@@ -12,8 +12,9 @@ import (
 	_ "github.com/lib/pq"
 )
 
+const dbDriver = "postgres"
+
 var (
-	dbDriver   string
 	dbUser     string
 	dbPassword string
 	dbHost     string
@@ -31,7 +32,6 @@ func init() {
 	var err error
 	godotenv.Load("../../.env")
 
-	dbDriver = os.Getenv("DB_DRIVER")
 	dbUser = os.Getenv("DB_USER")
 	dbPassword = os.Getenv("DB_PASSWORD")
 	dbHost = os.Getenv("DB_HOST")
