@@ -5,21 +5,10 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"strconv"
 	"testing"
 
-	"github.com/joho/godotenv"
 	_ "github.com/lib/pq"
-)
-
-var (
-	dbDriver   string
-	dbUser     string
-	dbPassword string
-	dbHost     string
-	dbPort     int
-	dbName     string
-	dbSource   string
+	"github.com/ofekatr/simple-bank/util"
 )
 
 var (
@@ -27,25 +16,16 @@ var (
 	testDB      *sql.DB
 )
 
-func init() {
-	var err error
-	godotenv.Load("../../.env")
-
-	dbDriver = "postgres"
-	dbUser = os.Getenv("DB_USER")
-	dbPassword = os.Getenv("DB_PASSWORD")
-	dbHost = os.Getenv("DB_HOST")
-	dbPort, err = strconv.Atoi(os.Getenv("DB_PORT"))
+func TestMain(m *testing.M) {
+	config, err := util.LoadConfig("../..")
 	if err != nil {
-		log.Fatalf("invalid DB port: %v", err)
+		log.Fatal("cannot load config:", err)
 	}
 
-	dbName = os.Getenv("DB_NAME")
-	dbSource = fmt.Sprintf("%s://%s:%s@%s:%d/%s?sslmode=disable", dbDriver, dbUser, dbPassword, dbHost, dbPort, dbName)
-}
-
-func TestMain(m *testing.M) {
-	var err error
+	var (
+		dbDriver = config.DBDriver
+		dbSource = fmt.Sprintf("%s://%s:%s@%s:%d/%s?sslmode=disable", config.DBDriver, config.DBUser, config.DBPassword, config.DBHost, config.DBPort, config.DBName)
+	)
 
 	testDB, err = sql.Open(dbDriver, dbSource)
 	if err != nil {
