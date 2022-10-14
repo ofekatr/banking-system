@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"log"
 
 	"github.com/pkg/errors"
 )
@@ -14,8 +13,6 @@ type Store struct {
 	*Queries
 	db *sql.DB
 }
-
-var TxKey = struct{}{}
 
 // Creats a new store.
 func NewStore(db *sql.DB) *Store {
@@ -66,15 +63,11 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferTxParams) (*Tran
 	result := TransferTxResult{}
 
 	err := store.execTx(ctx, func(q *Queries) (err error) {
-		txName := ctx.Value(TxKey)
-
-		log.Printf("%s creating transfer", txName)
 		result.Transfer, err = q.CreateTransfer(ctx, CreateTransferParams(arg))
 		if err != nil {
 			return errors.Wrap(err, "failed to create transfer")
 		}
 
-		log.Printf("%s creating from entry", txName)
 		result.FromEntry, err = q.CreateEntry(ctx, CreateEntryParams{
 			AccountID: arg.FromAccountID,
 			Amount:    -arg.Amount,
@@ -83,7 +76,6 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferTxParams) (*Tran
 			return errors.Wrap(err, "failed to create from entry")
 		}
 
-		log.Printf("%s creating to entry", txName)
 		result.ToEntry, err = q.CreateEntry(ctx, CreateEntryParams{
 			AccountID: arg.ToAccountID,
 			Amount:    arg.Amount,
@@ -92,22 +84,37 @@ func (store *Store) TransferTx(ctx context.Context, arg TransferTxParams) (*Tran
 			return errors.Wrap(err, "failed to create to entry")
 		}
 
-		log.Printf("%s subtracting amount from account", txName)
-		result.FromAccount, err = q.AddBalanceAmount(ctx, AddBalanceAmountParams{
-			ID:     arg.FromAccountID,
-			Amount: -arg.Amount,
-		})
-		if err != nil {
-			return errors.Wrap(err, "failed to add amount to account")
-		}
+		if arg.FromAccountID < arg.ToAccountID {
+			result.FromAccount, err = q.AddBalanceAmount(ctx, AddBalanceAmountParams{
+				ID:     arg.FromAccountID,
+				Amount: -arg.Amount,
+			})
+			if err != nil {
+				return errors.Wrap(err, "failed to add amount to account")
+			}
+			result.ToAccount, err = q.AddBalanceAmount(ctx, AddBalanceAmountParams{
+				ID:     arg.ToAccountID,
+				Amount: arg.Amount,
+			})
+			if err != nil {
+				return errors.Wrap(err, "failed to add amount to account")
+			}
+		} else {
+			result.ToAccount, err = q.AddBalanceAmount(ctx, AddBalanceAmountParams{
+				ID:     arg.ToAccountID,
+				Amount: arg.Amount,
+			})
+			if err != nil {
+				return errors.Wrap(err, "failed to add amount to account")
+			}
 
-		log.Printf("%s adding amount to account", txName)
-		result.ToAccount, err = q.AddBalanceAmount(ctx, AddBalanceAmountParams{
-			ID:     arg.ToAccountID,
-			Amount: arg.Amount,
-		})
-		if err != nil {
-			return errors.Wrap(err, "failed to add amount to account")
+			result.FromAccount, err = q.AddBalanceAmount(ctx, AddBalanceAmountParams{
+				ID:     arg.FromAccountID,
+				Amount: -arg.Amount,
+			})
+			if err != nil {
+				return errors.Wrap(err, "failed to add amount to account")
+			}
 		}
 
 		return nil
