@@ -10,7 +10,7 @@ import (
 )
 
 func TestTransferTx(t *testing.T) {
-	store := NewStore(testDB)
+	store := NewSqlStore(testDB)
 
 	account1, err := createRandomAccount()
 	require.NoError(t, err)
@@ -120,7 +120,7 @@ func TestTransferTx(t *testing.T) {
 }
 
 func TestTransferTxDeadlock(t *testing.T) {
-	store := NewStore(testDB)
+	store := NewSqlStore(testDB)
 
 	account1, err := createRandomAccount()
 	require.NoError(t, err)

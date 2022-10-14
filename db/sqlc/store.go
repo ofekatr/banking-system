@@ -9,21 +9,27 @@ import (
 )
 
 // Store encapsulates all the database operations.
-type Store struct {
+type Store interface {
+	Querier
+	execTx(ctx context.Context, txFunc func(*Queries) error) error
+	TransferTx(ctx context.Context, arg TransferTxParams) (*TransferTxResult, error)
+}
+
+type SqlStore struct {
 	*Queries
 	db *sql.DB
 }
 
 // Creats a new store.
-func NewStore(db *sql.DB) *Store {
-	return &Store{
+func NewSqlStore(db *sql.DB) Store {
+	return &SqlStore{
 		db:      db,
 		Queries: New(db),
 	}
 }
 
 // ExecTx executes a function within a database transaction.
-func (store *Store) execTx(ctx context.Context, txFunc func(*Queries) error) error {
+func (store *SqlStore) execTx(ctx context.Context, txFunc func(*Queries) error) error {
 	tx, err := store.db.BeginTx(ctx, nil)
 	if err != nil {
 		return errors.Wrap(err, "failed to begin a transaction")
@@ -59,7 +65,7 @@ type TransferTxResult struct {
 	ToEntry     Entry    `json:"to_entry"`
 }
 
-func (store *Store) TransferTx(ctx context.Context, arg TransferTxParams) (*TransferTxResult, error) {
+func (store *SqlStore) TransferTx(ctx context.Context, arg TransferTxParams) (*TransferTxResult, error) {
 	result := TransferTxResult{}
 
 	err := store.execTx(ctx, func(q *Queries) (err error) {
