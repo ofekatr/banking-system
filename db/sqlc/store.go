@@ -11,7 +11,6 @@ import (
 // Store encapsulates all the database operations.
 type Store interface {
 	Querier
-	execTx(ctx context.Context, txFunc func(*Queries) error) error
 	TransferTx(ctx context.Context, arg TransferTxParams) (*TransferTxResult, error)
 }
 
